@@ -101,19 +101,19 @@ export default function AdminReportsPage() {
       default:      start = subDays(now, 30)
     }
 
-    // ── Sales orders ─────────────────────────────────────────────────────
+    // ── Sales orders — CA recognized only at delivery (reference §9) ──────
     const { data: rawOrders } = await supabase
       .from('orders')
-      .select(`id, created_at, total_amount, delivery_fee, status, is_paid, amount_paid,
+      .select(`id, created_at, delivery_date, total_amount, delivery_fee, status, is_paid, paid_amount,
         user:users(company_name, client_profiles(company_name)),
         order_items(quantity, unit_price, product_id, product:products(name, purchase_price)),
         payments(amount, payment_method)`)
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .neq('status', 'pending')
+      .eq('status', 'delivered')
+      .gte('delivery_date', start.toISOString().split('T')[0])
+      .lte('delivery_date', end.toISOString().split('T')[0])
 
     type RawOrder = {
-      id: string; created_at: string; total_amount: number; delivery_fee: number
+      id: string; created_at: string; delivery_date: string | null; total_amount: number; delivery_fee: number
       status: string; is_paid: boolean
       user: { company_name: string; client_profiles: { company_name: string }[] | null } | null
       order_items: Array<{ quantity: number; unit_price: number; product_id: string; product: { name: string; purchase_price: number } | null }>
@@ -135,7 +135,7 @@ export default function AdminReportsPage() {
 
     for (const order of orders) {
       const orderTotal = (order.total_amount || 0) + (order.delivery_fee || 0)
-      const dayKey = format(parseISO(order.created_at), 'yyyy-MM-dd')
+      const dayKey = format(parseISO(order.delivery_date ?? order.created_at), 'yyyy-MM-dd')
       if (dayMap[dayKey]) { dayMap[dayKey].revenue += orderTotal; dayMap[dayKey].orders += 1 }
 
       const clientName =
@@ -191,11 +191,11 @@ export default function AdminReportsPage() {
       method: methodLabels[m] ?? m, amount: v.amount, count: v.count,
     })).sort((a, b) => b.amount - a.amount))
 
-    // ── Receivables (unpaid client orders) ───────────────────────────────
+    // ── Receivables — only delivered+unpaid invoices (reference §8) ────────
     const { data: unpaidOrders } = await supabase
       .from('orders')
       .select('id, total_amount, delivery_fee, payments(amount)')
-      .neq('status', 'pending')
+      .eq('status', 'delivered')
       .eq('is_paid', false)
 
     const receivables = (unpaidOrders ?? []).reduce((s, o) => {
@@ -330,8 +330,8 @@ export default function AdminReportsPage() {
             </div>
             <div className="saas-surface px-3.5 py-2.5">
               <Wallet className="w-4 h-4 text-amber-500 mb-2" />
-              <p className="text-lg font-bold text-red-600">{formatAr(totalReceivables + totalPayables)}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Impayés (clients + fournisseurs)</p>
+              <p className="text-lg font-bold text-red-600">{formatAr(totalReceivables)}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Créances livrées impayées</p>
             </div>
           </>
         )}

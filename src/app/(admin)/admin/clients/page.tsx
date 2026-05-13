@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Building2, Loader2, Pencil, Check, Eye } from 'lucide-react'
+import { Building2, Loader2, Pencil, Check, Eye, AlertCircle, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -14,9 +14,10 @@ type ClientRow = {
   user_id: string
   company_name: string
   phone: string
-  /** E-mail société / contact (profil B2B — même valeur que le compte à l’inscription) */
   email: string
+  address?: string | null
   payment_terms_days: number | null
+  profile_completed?: boolean
 }
 
 export default function AdminClientsPage() {
@@ -30,7 +31,7 @@ export default function AdminClientsPage() {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('client_profiles')
-      .select('id, user_id, company_name, phone, email, payment_terms_days')
+      .select('id, user_id, company_name, phone, email, address, payment_terms_days, profile_completed')
       .order('company_name')
 
     if (error) {
@@ -91,7 +92,8 @@ export default function AdminClientsPage() {
               <tr className="border-b border-slate-200 bg-orange-50">
                 <th className="text-left text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-4 py-2.5">Société</th>
                 <th className="text-left text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-3 py-2.5">Téléphone</th>
-                <th className="text-left text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-3 py-2.5">E-mail</th>
+                <th className="text-left text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-3 py-2.5">Adresse</th>
+                <th className="text-center text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-3 py-2.5">Profil</th>
                 <th className="text-right text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-3 py-2.5">Délai (j)</th>
                 <th className="text-right text-[11px] font-semibold text-orange-700 uppercase tracking-wide px-4 py-2.5 w-48"> </th>
               </tr>
@@ -104,12 +106,28 @@ export default function AdminClientsPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="font-medium text-slate-900 truncate max-w-[220px]">{row.company_name}</span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-slate-900 truncate max-w-[200px] block">{row.company_name}</span>
+                          {row.email?.trim() && (
+                            <span className="text-xs text-slate-400 truncate max-w-[200px] block">{row.email}</span>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-slate-600 tabular-nums text-sm">{row.phone}</td>
-                    <td className="px-3 py-2.5 text-slate-600 truncate max-w-[240px] text-sm" title={row.email}>
-                      {row.email?.trim() || '—'}
+                    <td className="px-3 py-2.5 text-slate-600 tabular-nums text-sm">{row.phone || '—'}</td>
+                    <td className="px-3 py-2.5 text-slate-500 text-xs max-w-[180px]">
+                      {row.address ? (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{row.address}</span>
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {row.profile_completed
+                        ? <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Profil complet" />
+                        : <span title="Profil incomplet"><AlertCircle className="w-3.5 h-3.5 text-amber-400 mx-auto" /></span>
+                      }
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <span className="font-semibold text-slate-900 tabular-nums">{row.payment_terms_days ?? 30}</span>

@@ -25,11 +25,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: clientProfile } = await supabase
     .from('client_profiles')
-    .select('id')
+    .select('profile_completed')
     .eq('user_id', user.id)
     .maybeSingle()
 
-  if (!clientProfile) {
+  if (!clientProfile?.profile_completed) {
     redirect('/complete-profile')
   }
 

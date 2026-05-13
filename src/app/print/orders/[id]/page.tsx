@@ -47,10 +47,13 @@ type ClientProfileRow = {
   nif: string
   stat: string
   rcs: string
+  manager_name: string
   phone: string
+  whatsapp?: string | null
   email: string
   address: string
   region: string
+  delivery_address?: string | null
   payment_terms_days?: number | null
 }
 
@@ -105,7 +108,7 @@ export default async function PrintDocumentPage({
     .select(`
       id, bc_number, fa_number, invoice_number, status, total_amount, delivery_fee, is_paid, paid_amount,
       created_at, validated_at, delivery_date, delivery_address, expected_delivery_date, due_date,
-      user:users(email, company_name, client_profiles(company_name, nif, stat, rcs, phone, email, address, region, payment_terms_days)),
+      user:users(email, company_name, client_profiles(company_name, nif, stat, rcs, manager_name, phone, whatsapp, email, address, region, delivery_address, payment_terms_days)),
       order_items(id, product_id, variant_id, quantity, delivered_quantity, unit_price, total_price, product:products(name, purchase_price), variant:product_variants(color)),
       payments(amount, payment_method, payment_date, reference),
       deliveries(id, bl_number, status, delivery_date, delivery_items(quantity, product:products(name), variant:product_variants(color)))
@@ -242,18 +245,44 @@ export default async function PrintDocumentPage({
           <div className="meta-box">
             <h3>Client</h3>
             <p className="value">{displayCompany}</p>
-            {cp?.address && (
+
+            {/* Contact principal */}
+            {cp?.manager_name && (
+              <p className="sub" style={{ marginTop: 4 }}>
+                Contact : {cp.manager_name}
+              </p>
+            )}
+
+            {/* Adresse de livraison (BL) ou adresse société (BC/Facture) */}
+            {docType === 'bl' && (cp?.delivery_address || cp?.address) ? (
+              <p className="sub" style={{ marginTop: 4 }}>
+                {cp?.delivery_address ?? cp?.address}
+                {cp?.region ? ` — ${cp.region}` : ''}
+              </p>
+            ) : cp?.address ? (
               <p className="sub" style={{ marginTop: 4 }}>
                 {cp.address}{cp.region ? ` — ${cp.region}` : ''}
               </p>
-            )}
-            {!cp?.address && order.delivery_address && (
+            ) : order.delivery_address ? (
               <p className="sub" style={{ marginTop: 4 }}>📍 {order.delivery_address}</p>
+            ) : null}
+
+            {/* Téléphone + WhatsApp */}
+            {cp?.phone && (
+              <p className="sub" style={{ marginTop: 4 }}>
+                Tél. {cp.phone}
+                {cp?.whatsapp && cp.whatsapp !== cp.phone
+                  ? ` · WA ${cp.whatsapp}`
+                  : ''}
+              </p>
             )}
-            {cp?.phone && <p className="sub" style={{ marginTop: 4 }}>Tél. {cp.phone}</p>}
+
+            {/* E-mail */}
             {(cp?.email || order.user?.email) && (
               <p className="sub" style={{ marginTop: 2 }}>{cp?.email ?? order.user?.email}</p>
             )}
+
+            {/* Fiscal */}
             {(cp?.nif || cp?.stat || cp?.rcs) && (
               <p className="sub" style={{ marginTop: 6, fontSize: 10, lineHeight: 1.6 }}>
                 {cp?.nif && <span>NIF : {cp.nif}</span>}

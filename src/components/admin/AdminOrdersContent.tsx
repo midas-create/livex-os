@@ -21,7 +21,7 @@ import {
   FileText, Loader2, AlertCircle, Printer, Wallet, XCircle, PackageCheck,
 } from 'lucide-react'
 import { clientPaymentStatus, paymentMethodLabelFr, paymentStatusBadgeFr } from '@/lib/payment-labels'
-import { format, isToday, parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatDistanceToNow, formatAr } from '@/lib/utils'
 import { applyClientDeliveryStock } from '@/lib/client-stock'
@@ -30,14 +30,14 @@ import { toast } from 'sonner'
 
 const statusConfig: Record<string, { label: string; class: string }> = {
   pending:              { label: 'En attente',          class: 'bg-amber-50 text-amber-700 border-amber-200' },
-  validated:            { label: 'Validée',             class: 'bg-blue-50 text-blue-700 border-blue-200' },
-  to_deliver:           { label: 'À livrer',            class: 'bg-violet-50 text-violet-700 border-violet-200' },
-  partially_delivered:  { label: 'Partiellement livrée',class: 'bg-orange-50 text-orange-700 border-orange-200' },
+  validated:            { label: 'Confirmée',           class: 'bg-blue-50 text-blue-700 border-blue-200' },
+  to_deliver:           { label: 'Confirmée',           class: 'bg-blue-50 text-blue-700 border-blue-200' },
+  partially_delivered:  { label: 'En livraison',        class: 'bg-violet-50 text-violet-700 border-violet-200' },
   delivered:            { label: 'Livrée',              class: 'bg-green-50 text-green-700 border-green-200' },
   cancelled:            { label: 'Annulée',             class: 'bg-red-50 text-red-700 border-red-200' },
 }
 
-type FilterTab = 'all' | 'pending' | 'validated' | 'to_deliver' | 'partially_delivered' | 'delivered' | 'unpaid' | 'today'
+type FilterTab = 'pending' | 'confirmed' | 'cancelled'
 
 // Ligne de livraison dans le modal de création de livraison
 type DeliveryLine = {
@@ -56,7 +56,7 @@ export function AdminOrdersContent() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<FilterTab>(
-    (searchParams.get('status') as FilterTab) ?? (searchParams.get('paid') === 'false' ? 'unpaid' : 'all')
+    searchParams.get('status') === 'cancelled' ? 'cancelled' : 'pending'
   )
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -531,32 +531,22 @@ export function AdminOrdersContent() {
   }
 
   const filtered = orders.filter(o => {
-    if (activeTab === 'all') return true
-    if (activeTab === 'unpaid') return orderRemaining(o) > 0.01 && o.status !== 'pending'
-    if (activeTab === 'today') return isToday(parseISO(o.created_at))
-    return o.status === activeTab
+    if (activeTab === 'pending') return o.status === 'pending'
+    if (activeTab === 'confirmed') return ['validated', 'to_deliver', 'partially_delivered'].includes(o.status)
+    if (activeTab === 'cancelled') return o.status === 'cancelled'
+    return false
   })
 
   const counts: Record<FilterTab, number> = {
-    all:                  orders.length,
-    pending:              orders.filter(o => o.status === 'pending').length,
-    validated:            orders.filter(o => o.status === 'validated').length,
-    to_deliver:           orders.filter(o => o.status === 'to_deliver').length,
-    partially_delivered:  orders.filter(o => o.status === 'partially_delivered').length,
-    delivered:            orders.filter(o => o.status === 'delivered').length,
-    unpaid:               orders.filter(o => orderRemaining(o) > 0.01 && o.status !== 'pending').length,
-    today:                orders.filter(o => isToday(parseISO(o.created_at))).length,
+    pending:   orders.filter(o => o.status === 'pending').length,
+    confirmed: orders.filter(o => ['validated', 'to_deliver', 'partially_delivered'].includes(o.status)).length,
+    cancelled: orders.filter(o => o.status === 'cancelled').length,
   }
 
   const tabs: { value: FilterTab; label: string }[] = [
-    { value: 'all',                label: 'Toutes' },
-    { value: 'pending',            label: 'En attente' },
-    { value: 'validated',          label: 'Validées' },
-    { value: 'to_deliver',         label: 'À livrer' },
-    { value: 'partially_delivered',label: 'Part. livrées' },
-    { value: 'delivered',          label: 'Livrées' },
-    { value: 'unpaid',             label: 'Impayées' },
-    { value: 'today',              label: "Aujourd'hui" },
+    { value: 'pending',   label: 'En attente' },
+    { value: 'confirmed', label: 'Confirmées' },
+    { value: 'cancelled', label: 'Annulées' },
   ]
 
   // Référence document à afficher dans la liste
@@ -932,7 +922,7 @@ export function AdminOrdersContent() {
                   <Button onClick={() => validateOrderWithReservation(selectedOrder)}
                     className="flex-1 gap-2 text-sm bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                    Valider la commande
+                    Confirmer la commande
                   </Button>
                 )}
                 {['validated', 'to_deliver', 'partially_delivered'].includes(selectedOrder.status) && (

@@ -19,6 +19,22 @@ export interface ClientProfile {
   /** Jours après la commande pour l'échéance de paiement */
   payment_terms_days?: number
   created_at: string
+  /** WhatsApp société (peut différer du téléphone) */
+  whatsapp?: string | null
+  /** Poste / titre du contact principal */
+  contact_position?: string | null
+  /** Téléphone direct du contact principal */
+  contact_phone?: string | null
+  /** WhatsApp direct du contact principal */
+  contact_whatsapp?: string | null
+  /** E-mail direct du contact principal */
+  contact_email?: string | null
+  /** Adresse de livraison si différente de l'adresse société */
+  delivery_address?: string | null
+  /** Instructions de livraison (code accès, bâtiment, remarques) */
+  delivery_notes?: string | null
+  /** true après complétion du profil — gate d'accès au tableau de bord */
+  profile_completed?: boolean
 }
 
 export interface User {
@@ -234,6 +250,21 @@ export interface CashflowOutflow {
   created_at: string
 }
 
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+
+export interface Supplier {
+  id: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  nif?: string | null
+  contact?: string | null
+  payment_terms_days?: number | null
+  notes?: string | null
+  created_at: string
+}
+
 // ─── Purchases (supplier entries) ───────────────────────────────────────────
 
 export type PurchasePaymentStatus = 'unpaid' | 'partial' | 'paid'
@@ -241,6 +272,9 @@ export type PurchasePaymentStatus = 'unpaid' | 'partial' | 'paid'
 export interface Purchase {
   id: string
   supplier_name: string
+  /** FK to suppliers.id — populated after schema-v16 migration */
+  supplier_id?: string | null
+  supplier?: Supplier | null
   purchase_date: string
   due_date?: string
   payment_status: PurchasePaymentStatus

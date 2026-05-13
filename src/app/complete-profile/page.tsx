@@ -18,9 +18,13 @@ export default async function CompleteProfilePage() {
     redirect('/admin')
   }
 
-  const { data: existing } = await supabase.from('client_profiles').select('id').eq('user_id', user.id).maybeSingle()
+  const { data: existing } = await supabase
+    .from('client_profiles')
+    .select('id, profile_completed')
+    .eq('user_id', user.id)
+    .maybeSingle()
 
-  if (existing) {
+  if (existing?.profile_completed) {
     redirect('/products')
   }
 

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Product, Purchase } from '@/lib/types'
+import Link from 'next/link'
+import type { Product, Purchase, Supplier } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,12 +50,13 @@ const paymentStatusConfig: Record<string, { label: string; class: string }> = {
 export default function AdminPurchasesPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null)
 
   // ── Form state ──────────────────────────────────────────────────────────
-  const [supplierName, setSupplierName]     = useState('')
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [purchaseDate, setPurchaseDate]     = useState(new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate]               = useState('')
   const [paymentStatus, setPaymentStatus]   = useState<'unpaid' | 'partial' | 'paid'>('unpaid')
@@ -64,12 +66,14 @@ export default function AdminPurchasesPage() {
 
   const fetchData = useCallback(async () => {
     const supabase = createClient()
-    const [{ data: prods }, { data: purchs }] = await Promise.all([
+    const [{ data: prods }, { data: purchs }, { data: supps }] = await Promise.all([
       supabase.from('products').select('*, category:categories(name), variants:product_variants(*)').order('name'),
       supabase.from('purchases').select('*, purchase_items(*, product:products(id,name), variant:product_variants(color))').order('created_at', { ascending: false }),
+      supabase.from('suppliers').select('*').order('name'),
     ])
     setProducts(prods ?? [])
     setPurchases((purchs ?? []) as Purchase[])
+    setSuppliers((supps ?? []) as Supplier[])
     setLoading(false)
   }, [])
 
@@ -109,7 +113,7 @@ export default function AdminPurchasesPage() {
   }, 0)
 
   function resetForm() {
-    setSupplierName('')
+    setSelectedSupplierId('')
     setPurchaseDate(new Date().toISOString().split('T')[0])
     setDueDate('')
     setPaymentStatus('unpaid')
@@ -118,7 +122,8 @@ export default function AdminPurchasesPage() {
   }
 
   async function submitPurchase() {
-    if (!supplierName.trim()) { toast.error('Nom du fournisseur requis'); return }
+    if (!selectedSupplierId) { toast.error('Sélectionnez un fournisseur'); return }
+    const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId)
     const validLines = lines.filter(l => l.product_id && parseFloat(l.quantity) > 0)
     if (validLines.length === 0) { toast.error('Ajoutez au moins une ligne valide'); return }
 
@@ -138,7 +143,8 @@ export default function AdminPurchasesPage() {
       const { data: purchase, error: purchErr } = await supabase
         .from('purchases')
         .insert({
-          supplier_name: supplierName.trim(),
+          supplier_name: selectedSupplier?.name ?? '',
+          supplier_id: selectedSupplierId || null,
           purchase_date: purchaseDate,
           due_date: dueDate || null,
           payment_status: paymentStatus,
@@ -168,7 +174,7 @@ export default function AdminPurchasesPage() {
         quantity: parseInt(l.quantity, 10),
         source: 'purchase' as const,
         purchase_id: purchase.id,
-        notes: `Achat ${supplierName.trim()}`,
+        notes: `Achat ${selectedSupplier?.name ?? ''}`,
       }))
       const { error: mvtErr } = await supabase.from('stock_movements').insert(movements)
       if (mvtErr) throw new Error('Erreur mouvements stock: ' + mvtErr.message)
@@ -270,13 +276,25 @@ export default function AdminPurchasesPage() {
             {/* Header fields */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="lg:col-span-2 space-y-1.5">
-                <Label>Fournisseur *</Label>
-                <Input
-                  value={supplierName}
-                  onChange={e => setSupplierName(e.target.value)}
-                  placeholder="Nom du fournisseur"
-                  className="h-8"
-                />
+                <div className="flex items-center justify-between">
+                  <Label>Fournisseur *</Label>
+                  <Link href="/admin/fournisseurs" className="text-[11px] text-orange-500 hover:text-orange-600 font-medium">
+                    Gérer les fournisseurs →
+                  </Link>
+                </div>
+                <Select value={selectedSupplierId} onValueChange={v => setSelectedSupplierId(v ?? '')}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder={suppliers.length === 0 ? 'Aucun fournisseur — créez-en un d\'abord' : 'Sélectionner un fournisseur...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                        {s.phone && <span className="text-slate-400 ml-2 text-xs">{s.phone}</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Date d&apos;achat</Label>
@@ -453,7 +471,7 @@ export default function AdminPurchasesPage() {
               </Button>
               <Button
                 onClick={submitPurchase}
-                disabled={saving || !supplierName.trim() || lines.every(l => !l.product_id)}
+                disabled={saving || !selectedSupplierId || lines.every(l => !l.product_id)}
                 className="bg-orange-500 hover:bg-orange-600 text-white gap-2 px-6 h-8"
               >
                 {saving

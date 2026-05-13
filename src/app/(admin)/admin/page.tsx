@@ -45,11 +45,12 @@ export default function AdminDashboardPage() {
       const getTotal = (o: { total_amount: number; delivery_fee: number }) =>
         (o.total_amount || 0) + (o.delivery_fee || 0)
 
-      const todayOrders = orders.filter(o => o.created_at >= todayStart)
-      const monthOrders = orders.filter(o => o.created_at >= monthStart)
-      const unpaidOrders = orders.filter(o =>
-        (o.status === 'validated' || o.status === 'to_deliver' || o.status === 'delivered') && !o.is_paid
-      )
+      // CA recognized only at delivery (reference §9)
+      const deliveredOrders = orders.filter(o => o.status === 'delivered')
+      const todayOrders = deliveredOrders.filter(o => o.created_at >= todayStart)
+      const monthOrders = deliveredOrders.filter(o => o.created_at >= monthStart)
+      // Unpaid = delivered invoices not yet settled (reference §8)
+      const unpaidOrders = deliveredOrders.filter(o => !o.is_paid)
 
       const days: SalesByDay[] = []
       for (let i = 13; i >= 0; i--) {
@@ -218,9 +219,9 @@ export default function AdminDashboardPage() {
       {!loading && stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'En attente', value: stats.pendingOrders, color: 'bg-amber-400', href: '/admin/orders?status=pending' },
-            { label: 'À livrer', value: stats.toDeliverOrders, color: 'bg-blue-500', href: '/admin/orders?status=to_deliver' },
-            { label: 'Impayées', value: stats.unpaidOrders, color: 'bg-red-500', href: '/admin/orders?paid=false' },
+            { label: 'En attente', value: stats.pendingOrders, color: 'bg-amber-400', href: '/admin/orders' },
+            { label: 'À livrer', value: stats.toDeliverOrders, color: 'bg-blue-500', href: '/admin/livraisons' },
+            { label: 'Impayées', value: stats.unpaidOrders, color: 'bg-red-500', href: '/admin/recouvrement' },
             { label: 'Stock faible', value: stats.lowStockProducts, color: 'bg-orange-400', href: '/admin/stock' },
           ].map(item => (
             <a key={item.label} href={item.href}

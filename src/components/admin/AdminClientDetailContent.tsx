@@ -7,6 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   ArrowLeft, Phone, Mail, Clock, ClipboardList, Receipt,
   CheckCircle2, AlertTriangle, Building2, CreditCard,
+  MapPin, User, Hash, MessageCircle, Navigation, FileText,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -16,11 +18,25 @@ type Profile = {
   id: string
   user_id: string
   company_name: string
+  nif: string | null
+  stat: string | null
+  rcs: string | null
+  manager_name: string
   phone: string
+  whatsapp?: string | null
   email: string
-  payment_terms_days: number | null
+  contact_position?: string | null
+  contact_phone?: string | null
+  contact_whatsapp?: string | null
+  contact_email?: string | null
   address?: string | null
   region?: string | null
+  delivery_address?: string | null
+  delivery_notes?: string | null
+  gps_lat?: number | null
+  gps_lng?: number | null
+  payment_terms_days: number | null
+  profile_completed?: boolean
 }
 
 type Payment = {
@@ -47,27 +63,27 @@ type Order = {
 }
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
-  pending: 'En attente',
-  validated: 'Validee',
-  to_deliver: 'A livrer',
-  partially_delivered: 'Partiel',
-  delivered: 'Livree',
-  cancelled: 'Annulee',
+  pending:             'En attente',
+  validated:           'Confirmée',
+  to_deliver:          'Confirmée',
+  partially_delivered: 'Partielle',
+  delivered:           'Livrée',
+  cancelled:           'Annulée',
 }
 
 const ORDER_STATUS_CLASS: Record<string, string> = {
-  pending:              'bg-slate-100 text-slate-600',
-  validated:            'bg-blue-100 text-blue-700',
-  to_deliver:           'bg-indigo-100 text-indigo-700',
-  partially_delivered:  'bg-amber-100 text-amber-700',
-  delivered:            'bg-emerald-100 text-emerald-700',
-  cancelled:            'bg-red-100 text-red-500 line-through',
+  pending:             'bg-slate-100 text-slate-600',
+  validated:           'bg-blue-100 text-blue-700',
+  to_deliver:          'bg-indigo-100 text-indigo-700',
+  partially_delivered: 'bg-amber-100 text-amber-700',
+  delivered:           'bg-emerald-100 text-emerald-700',
+  cancelled:           'bg-red-100 text-red-500 line-through',
 }
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  cash:         'Especes',
+  cash:         'Espèces',
   transfer:     'Virement',
-  cheque:       'Cheque',
+  cheque:       'Chèque',
   mobile_money: 'Mobile Money',
   bank:         'Banque',
 }
@@ -88,9 +104,9 @@ function paymentBadge(o: Order) {
   if (o.status === 'cancelled') return null
   const invoiceable = ['delivered', 'partially_delivered'].includes(o.status)
   if (!invoiceable) return null
-  if (o.is_paid) return { label: 'Paye', cls: 'bg-emerald-100 text-emerald-700' }
+  if (o.is_paid) return { label: 'Payé', cls: 'bg-emerald-100 text-emerald-700' }
   if ((o.paid_amount ?? 0) > 0) return { label: 'Partiel', cls: 'bg-amber-100 text-amber-700' }
-  return { label: 'Impaye', cls: 'bg-red-100 text-red-700' }
+  return { label: 'Impayé', cls: 'bg-red-100 text-red-700' }
 }
 
 function StatCard({
@@ -130,12 +146,25 @@ function StatCard({
   )
 }
 
+// ── Compact info row ─────────────────────────────────────────────────────────
+function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | null | undefined }) {
+  if (!value?.trim()) return null
+  return (
+    <div className="flex items-start gap-2.5 text-sm">
+      <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+      <span className="text-slate-500 shrink-0 min-w-[100px] text-xs">{label}</span>
+      <span className="text-slate-800 font-medium text-xs break-all">{value}</span>
+    </div>
+  )
+}
+
 export function AdminClientDetailContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -148,7 +177,13 @@ export function AdminClientDetailContent() {
 
     const { data: prof, error: pErr } = await supabase
       .from('client_profiles')
-      .select('id, user_id, company_name, phone, email, payment_terms_days, address, region')
+      .select(`
+        id, user_id, company_name, nif, stat, rcs, manager_name,
+        phone, whatsapp, email,
+        contact_position, contact_phone, contact_whatsapp, contact_email,
+        address, region, delivery_address, delivery_notes,
+        gps_lat, gps_lng, payment_terms_days, profile_completed
+      `)
       .eq('id', id)
       .single()
 
@@ -213,7 +248,7 @@ export function AdminClientDetailContent() {
   return (
     <div className="space-y-4">
 
-      {/* Hero */}
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 shadow-xl relative overflow-hidden">
         <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, #f97316 0%, transparent 60%)' }} />
         <Link
@@ -228,13 +263,26 @@ export function AdminClientDetailContent() {
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg shadow-orange-900/30 shrink-0">
             {initials}
           </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-white leading-tight truncate">{profile.company_name}</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-white leading-tight truncate">{profile.company_name}</h1>
+              {profile.profile_completed === false && (
+                <span className="text-[10px] font-semibold bg-amber-500 text-amber-950 px-2 py-0.5 rounded-full">
+                  PROFIL INCOMPLET
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2.5">
               {profile.phone && (
                 <span className="flex items-center gap-1.5 text-slate-300 text-sm">
                   <Phone className="w-3.5 h-3.5 text-slate-500" />
                   {profile.phone}
+                </span>
+              )}
+              {profile.whatsapp && profile.whatsapp !== profile.phone && (
+                <span className="flex items-center gap-1.5 text-slate-300 text-sm">
+                  <MessageCircle className="w-3.5 h-3.5 text-slate-500" />
+                  {profile.whatsapp}
                 </span>
               )}
               {profile.email && (
@@ -245,46 +293,86 @@ export function AdminClientDetailContent() {
               )}
               <span className="flex items-center gap-1.5 text-slate-300 text-sm">
                 <Clock className="w-3.5 h-3.5 text-slate-500" />
-                Delai paiement : <strong className="text-white">{profile.payment_terms_days ?? 30} jours</strong>
+                Délai paiement : <strong className="text-white">{profile.payment_terms_days ?? 30} jours</strong>
               </span>
             </div>
-            {profile.region && (
-              <p className="text-slate-500 text-xs mt-1.5">{profile.region}</p>
+            {(profile.address || profile.region) && (
+              <p className="text-slate-500 text-xs mt-1.5">
+                {[profile.address, profile.region].filter(Boolean).join(' — ')}
+              </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* ── Fiche client (collapsible) ────────────────────────────────────── */}
+      <div className="saas-surface overflow-hidden">
+        <button
+          onClick={() => setProfileOpen(o => !o)}
+          className="w-full px-4 py-3 flex items-center gap-2 hover:bg-slate-50 transition-colors"
+        >
+          <Building2 className="w-4 h-4 text-slate-400" />
+          <h2 className="font-semibold text-slate-800 text-sm">Fiche société</h2>
+          {profileOpen
+            ? <ChevronUp className="w-4 h-4 text-slate-400 ml-auto" />
+            : <ChevronDown className="w-4 h-4 text-slate-400 ml-auto" />
+          }
+        </button>
+
+        {profileOpen && (
+          <div className="px-4 pb-4 grid sm:grid-cols-3 gap-4">
+            {/* Fiscal */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Identification fiscale</p>
+              <InfoRow icon={Building2} label="Raison sociale" value={profile.company_name} />
+              <InfoRow icon={Hash}     label="NIF"            value={profile.nif} />
+              <InfoRow icon={Hash}     label="STAT"           value={profile.stat} />
+              <InfoRow icon={Hash}     label="RCS"            value={profile.rcs} />
+            </div>
+
+            {/* Contact */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Contact principal</p>
+              <InfoRow icon={User}          label="Responsable"   value={profile.manager_name} />
+              <InfoRow icon={FileText}      label="Poste"         value={profile.contact_position} />
+              <InfoRow icon={Phone}         label="Tél. direct"   value={profile.contact_phone} />
+              <InfoRow icon={MessageCircle} label="WA direct"     value={profile.contact_whatsapp} />
+              <InfoRow icon={Mail}          label="E-mail direct" value={profile.contact_email} />
+            </div>
+
+            {/* Adresse */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Adresse & livraison</p>
+              <InfoRow icon={MapPin}     label="Adresse"      value={profile.address} />
+              <InfoRow icon={MapPin}     label="Région"       value={profile.region} />
+              <InfoRow icon={MapPin}     label="Livraison"    value={profile.delivery_address} />
+              <InfoRow icon={FileText}   label="Instructions" value={profile.delivery_notes} />
+              {(profile.gps_lat != null && profile.gps_lng != null) && (
+                <InfoRow
+                  icon={Navigation}
+                  label="GPS"
+                  value={`${profile.gps_lat}, ${profile.gps_lng}`}
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Stats ─────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Commandes" value={stats.orderCount} icon={ClipboardList} accent="slate" />
+        <StatCard label="Total facturé" value={fmtAr(stats.totalBilled)} sub="livraisons TTC" icon={Receipt} accent="blue" />
+        <StatCard label="Encaissé" value={fmtAr(stats.totalPaid)} icon={CheckCircle2} accent="emerald" />
         <StatCard
-          label="Commandes"
-          value={stats.orderCount}
-          icon={ClipboardList}
-          accent="slate"
-        />
-        <StatCard
-          label="Total facture"
-          value={fmtAr(stats.totalBilled)}
-          sub="livraisons comprises"
-          icon={Receipt}
-          accent="blue"
-        />
-        <StatCard
-          label="Encaisse"
-          value={fmtAr(stats.totalPaid)}
-          icon={CheckCircle2}
-          accent="emerald"
-        />
-        <StatCard
-          label="Solde du"
+          label="Solde dû"
           value={fmtAr(stats.balance)}
           icon={stats.balance > 0 ? AlertTriangle : CheckCircle2}
           accent={stats.balance > 0 ? 'red' : 'emerald'}
         />
       </div>
 
-      {/* Orders */}
+      {/* ── Orders ────────────────────────────────────────────────────────── */}
       <div className="saas-surface overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
           <ClipboardList className="w-4 h-4 text-slate-400" />
@@ -300,12 +388,12 @@ export function AdminClientDetailContent() {
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80">
                   <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-4 py-2.5">Date</th>
-                  <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Reference</th>
+                  <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Référence</th>
                   <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Statut</th>
                   <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Montant</th>
-                  <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Encaisse</th>
+                  <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Encaissé</th>
                   <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Reste</th>
-                  <th className="text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Echeance</th>
+                  <th className="text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Échéance</th>
                   <th className="text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-4 py-2.5">Paiement</th>
                 </tr>
               </thead>
@@ -320,9 +408,7 @@ export function AdminClientDetailContent() {
                     <tr key={o.id} className={cn('border-b border-slate-100 hover:bg-slate-50/60 transition-colors', cancelled && 'opacity-50')}>
                       <td className="px-4 py-2.5 text-slate-500 text-xs tabular-nums">{fmtDate(o.created_at)}</td>
                       <td className="px-3 py-2.5">
-                        <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
-                          {orderRef(o)}
-                        </span>
+                        <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{orderRef(o)}</span>
                       </td>
                       <td className="px-3 py-2.5">
                         <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-semibold', ORDER_STATUS_CLASS[o.status] ?? 'bg-slate-100 text-slate-600')}>
@@ -330,9 +416,7 @@ export function AdminClientDetailContent() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 font-medium">{fmtAr(grandTotal)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
-                        {paid > 0 ? fmtAr(paid) : '—'}
-                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{paid > 0 ? fmtAr(paid) : '—'}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums">
                         {!cancelled && balance > 0
                           ? <span className="font-bold text-red-700">{fmtAr(balance)}</span>
@@ -357,12 +441,12 @@ export function AdminClientDetailContent() {
         )}
       </div>
 
-      {/* Payments */}
+      {/* ── Payments ──────────────────────────────────────────────────────── */}
       {allPayments.length > 0 && (
         <div className="saas-surface overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-slate-400" />
-            <h2 className="font-semibold text-slate-800 text-sm">Paiements recus</h2>
+            <h2 className="font-semibold text-slate-800 text-sm">Paiements reçus</h2>
             <span className="ml-auto text-xs text-slate-400 font-medium">{allPayments.length} paiement{allPayments.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="overflow-x-auto">
@@ -373,7 +457,7 @@ export function AdminClientDetailContent() {
                   <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Commande</th>
                   <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Montant</th>
                   <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-3 py-2.5">Mode</th>
-                  <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-4 py-2.5">Reference</th>
+                  <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-4 py-2.5">Référence</th>
                 </tr>
               </thead>
               <tbody>
@@ -384,16 +468,14 @@ export function AdminClientDetailContent() {
                       <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{p.orderRef}</span>
                     </td>
                     <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-700">{fmtAr(p.amount)}</td>
-                    <td className="px-3 py-2.5 text-slate-600 text-xs">
-                      {PAYMENT_METHOD_LABEL[p.payment_method] ?? p.payment_method}
-                    </td>
+                    <td className="px-3 py-2.5 text-slate-600 text-xs">{PAYMENT_METHOD_LABEL[p.payment_method] ?? p.payment_method}</td>
                     <td className="px-4 py-2.5 text-slate-400 text-xs">{p.reference ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50">
-                  <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-slate-600 text-right">Total encaisse</td>
+                  <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-slate-600 text-right">Total encaissé</td>
                   <td className="px-3 py-2.5 text-right font-bold text-emerald-700 tabular-nums">
                     {fmtAr(allPayments.reduce((s, p) => s + p.amount, 0))}
                   </td>
@@ -408,7 +490,7 @@ export function AdminClientDetailContent() {
       {allPayments.length === 0 && orders.length > 0 && (
         <div className="saas-surface p-6 text-center">
           <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-sm text-slate-500">Aucun paiement enregistre pour ce client.</p>
+          <p className="text-sm text-slate-500">Aucun paiement enregistré pour ce client.</p>
         </div>
       )}
 
