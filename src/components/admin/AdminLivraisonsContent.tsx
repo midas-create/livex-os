@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Order } from '@/lib/types'
-import { orderClientCompanyName, clientProfileFromUser } from '@/lib/order-client'
+import { orderClientCompanyName } from '@/lib/order-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
