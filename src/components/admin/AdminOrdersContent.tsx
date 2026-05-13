@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Order, OrderItem, OrderStatus, Payment, PaymentMethod } from '@/lib/types'
+import type { Order, OrderItem, Payment, PaymentMethod } from '@/lib/types'
 import { clientProfileFromUser, orderClientCompanyName } from '@/lib/order-client'
 import { ClientProfileModal } from '@/components/admin/ClientProfileModal'
 import { Badge } from '@/components/ui/badge'
@@ -98,23 +98,6 @@ export function AdminOrdersContent() {
   }
 
   useEffect(() => { fetchOrders() }, [])
-
-  // ── Mise à jour statut simple (sans logique stock) ─────────────────────────
-  async function updateStatus(orderId: string, status: OrderStatus) {
-    setSaving(true)
-    const supabase = createClient()
-    const updates: Record<string, unknown> = { status }
-    if (status === 'delivered') updates.delivery_date = new Date().toISOString().split('T')[0]
-    const { error } = await supabase.from('orders').update(updates).eq('id', orderId)
-    if (!error) {
-      toast.success('Statut mis à jour')
-      fetchOrders()
-      if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, status, ...updates } as Order : null)
-    } else {
-      toast.error('Erreur lors de la mise à jour')
-    }
-    setSaving(false)
-  }
 
   // ── Valider BC avec réservation de stock ───────────────────────────────────
   async function validateOrderWithReservation(order: Order) {
